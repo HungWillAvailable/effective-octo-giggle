@@ -1,0 +1,20 @@
+# ===================================================
+# Telegram Video Uploader — Web App Requirements
+# ===================================================
+# Compatible với Python 3.14+ (không cần C++ Build Tools)
+
+# PyroFork — fork cộng đồng của Pyrogram, tương thích Python 3.12+/3.14+
+# API hoàn toàn giống Pyrogram (import pyrogram vẫn dùng bình thường)
+pyrofork
+
+# Web framework
+fastapi==0.111.0
+uvicorn[standard]==0.29.0
+python-multipart==0.0.9
+
+# HTTP async client — httpx thay thế aiohttp (pure Python, không cần compile)
+httpx>=0.28.1
+aiofiles==23.2.1
+
+# Config
+python-dotenv==1.0.1

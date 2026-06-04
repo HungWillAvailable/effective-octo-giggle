@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="vi" class="scroll-smooth">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CineStream — Private Theater</title>
+  <meta name="description" content="Private Telegram-powered video streaming gallery" />
+
+  <!-- TailwindCSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            cinema: {
+              bg:      '#0a0a0f',
+              card:    '#12121a',
+              border:  '#1e1e2e',
+              accent:  '#e50914',
+              gold:    '#f5c518',
+              muted:   '#6b7280',
+            }
+          },
+          fontFamily: {
+            sans: ['Inter', 'system-ui', 'sans-serif'],
+          },
+          animation: {
+            'fade-in':   'fadeIn .35s ease forwards',
+            'slide-up':  'slideUp .4s ease forwards',
+            'shimmer':   'shimmer 1.6s infinite',
+            'pulse-red': 'pulseRed 2s infinite',
+          },
+          keyframes: {
+            fadeIn:   { from: { opacity: 0 }, to: { opacity: 1 } },
+            slideUp:  { from: { opacity: 0, transform: 'translateY(24px)' }, to: { opacity: 1, transform: 'translateY(0)' } },
+            shimmer:  { '0%': { backgroundPosition: '-400px 0' }, '100%': { backgroundPosition: '400px 0' } },
+            pulseRed: { '0%,100%': { boxShadow: '0 0 0 0 rgba(229,9,20,.4)' }, '50%': { boxShadow: '0 0 0 8px rgba(229,9,20,0)' } },
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
+
+  <!-- Plyr CSS -->
+  <!-- No Plyr — native video controls -->
+
+  <style>
+    * { box-sizing: border-box; }
+    body { background: #0a0a0f; font-family: 'Inter', sans-serif; }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: #0a0a0f; }
+    ::-webkit-scrollbar-thumb { background: #2d2d3f; border-radius: 3px; }
+
+    /* Hero gradient text */
+    .gradient-text {
+      background: linear-gradient(135deg, #fff 0%, #a78bfa 50%, #e50914 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    /* Card hover 3D */
+    .movie-card {
+      transition: transform .3s ease, box-shadow .3s ease;
+      transform-origin: center bottom;
+    }
+    .movie-card:hover {
+      transform: translateY(-8px) scale(1.03);
+      box-shadow: 0 24px 48px rgba(0,0,0,.8), 0 0 0 1px rgba(229,9,20,.3);
+    }
+
+    /* Skeleton shimmer */
+    .skeleton {
+      background: linear-gradient(90deg, #12121a 25%, #1e1e2e 50%, #12121a 75%);
+      background-size: 400px 100%;
+      animation: shimmer 1.6s infinite;
+    }
+
+    /* Native video player */
+    #player { border-radius: 0; background: #000; }
+    #player::-webkit-media-controls-panel { background: linear-gradient(transparent, rgba(0,0,0,.7)); }
+
+    /* Modal backdrop blur */
+    .modal-backdrop { backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
+
+    /* Noise overlay for hero */
+    .noise::after {
+      content: '';
+      position: absolute; inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+      pointer-events: none; opacity: .4;
+    }
+
+    /* Part indicator pill */
+    .part-indicator {
+      background: rgba(229,9,20,.85);
+      backdrop-filter: blur(6px);
+      transition: opacity .3s ease;
+    }
+  </style>
+</head>
+
+<body class="min-h-screen text-white antialiased">
+
+  <!-- ── NAVBAR ──────────────────────────────────────────────── -->
+  <nav class="fixed top-0 inset-x-0 z-40 flex items-center justify-between px-6 md:px-12 py-4
+              bg-gradient-to-b from-black/90 to-transparent backdrop-blur-sm">
+    <div class="flex items-center gap-3">
+      <span class="text-cinema-accent font-black text-2xl tracking-tight">CINE</span>
+      <span class="font-light text-white/70 text-2xl tracking-widest">STREAM</span>
+    </div>
+    <div class="flex items-center gap-4">
+      <div class="relative">
+        <input id="search-input" type="text" placeholder="Tìm phim..."
+               class="bg-white/10 border border-white/10 rounded-full px-4 py-1.5 text-sm
+                      focus:outline-none focus:border-cinema-accent focus:bg-white/15
+                      transition-all w-32 focus:w-48 placeholder-white/40" />
+      </div>
+      <div id="live-dot" class="flex items-center gap-2 text-xs text-white/50">
+        <span class="w-2 h-2 rounded-full bg-green-400 animate-pulse"></span>
+        <span>Live</span>
+      </div>
+    </div>
+  </nav>
+
+  <!-- ── HERO ────────────────────────────────────────────────── -->
+  <section id="hero" class="relative noise min-h-[55vh] flex items-end pb-16 px-6 md:px-12
+                             bg-gradient-to-br from-[#0a0a0f] via-[#1a0a1e] to-[#0a0a0f] overflow-hidden">
+    <!-- bg ambient blobs -->
+    <div class="absolute top-0 left-1/4 w-96 h-96 bg-purple-900/20 rounded-full blur-3xl pointer-events-none"></div>
+    <div class="absolute top-10 right-1/4 w-64 h-64 bg-red-900/15 rounded-full blur-3xl pointer-events-none"></div>
+
+    <div class="relative z-10 max-w-2xl animate-slide-up">
+      <div class="flex items-center gap-2 mb-4">
+        <span class="bg-cinema-accent text-white text-xs font-bold px-2 py-0.5 rounded">PRIVATE</span>
+        <span class="text-white/40 text-xs tracking-widest uppercase">Telegram Theater</span>
+      </div>
+      <h1 class="gradient-text text-5xl md:text-7xl font-black leading-none mb-4">
+        Your Private<br/>Cinema.
+      </h1>
+      <p class="text-white/50 text-base md:text-lg mb-6 max-w-md leading-relaxed">
+        Tự động upload, xử lý và stream video từ Telegram lên trình duyệt của bạn.
+      </p>
+      <div class="flex gap-3">
+        <button onclick="document.getElementById('gallery').scrollIntoView({behavior:'smooth'})"
+                class="flex items-center gap-2 bg-cinema-accent hover:bg-red-700 transition-colors
+                       text-white font-semibold px-6 py-3 rounded-lg text-sm animate-pulse-red">
+          ▶ Xem Phim
+        </button>
+        <button onclick="refreshGallery()"
+                class="flex items-center gap-2 bg-white/10 hover:bg-white/20 transition-colors
+                       border border-white/10 text-white font-medium px-6 py-3 rounded-lg text-sm">
+          ↻ Làm mới
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── GALLERY ─────────────────────────────────────────────── -->
+  <section id="gallery" class="px-6 md:px-12 py-12">
+    <div class="flex items-center justify-between mb-8">
+      <h2 class="text-xl font-bold text-white/90 tracking-wide">
+        🎬 <span id="gallery-title">Tất Cả Phim</span>
+      </h2>
+      <span id="movie-count" class="text-cinema-muted text-sm"></span>
+    </div>
+
+    <!-- Grid -->
+    <div id="movie-grid"
+         class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+      <!-- Skeletons shown on load -->
+    </div>
+
+    <!-- Empty state -->
+    <div id="empty-state" class="hidden flex-col items-center justify-center py-24 text-center">
+      <div class="text-6xl mb-4">🎞️</div>
+      <p class="text-white/40 text-lg font-medium">Chưa có phim nào</p>
+      <p class="text-white/25 text-sm mt-2">Upload video qua Dashboard → <a href="/admin.html" class="underline hover:text-white transition">/admin.html</a></p>
+    </div>
+
+    <!-- Error state -->
+    <div id="error-state" class="hidden flex-col items-center justify-center py-24 text-center">
+      <div class="text-5xl mb-4">⚠️</div>
+      <p class="text-red-400 text-lg font-medium">Không thể tải danh sách phim</p>
+      <p class="text-white/30 text-sm mt-2" id="error-msg"></p>
+      <button onclick="refreshGallery()"
+              class="mt-6 bg-cinema-accent hover:bg-red-700 transition px-5 py-2 rounded-lg text-sm font-medium">
+        Thử lại
+      </button>
+    </div>
+  </section>
+
+  <!-- ── VIDEO MODAL ─────────────────────────────────────────── -->
+  <div id="modal"
+       class="fixed inset-0 z-50 hidden items-center justify-center modal-backdrop bg-black/85 animate-fade-in"
+       onclick="closeModal(event)">
+
+    <div class="relative w-full max-w-5xl mx-4 animate-slide-up" onclick="event.stopPropagation()">
+      <!-- Close button -->
+      <button onclick="closeModal()"
+              class="absolute -top-10 right-0 text-white/60 hover:text-white transition text-2xl z-10">✕</button>
+
+      <!-- Player wrapper -->
+      <div class="relative rounded-xl overflow-hidden shadow-2xl shadow-black/80 border border-white/5">
+        <video id="player" playsinline controls preload="metadata"
+               class="w-full aspect-video bg-black">
+        </video>
+        <!-- Part indicator (hiển thị nhỏ góc trên, không cần click) -->
+        <div id="part-indicator" class="part-indicator absolute top-3 right-3 text-white text-xs
+                    font-bold px-3 py-1 rounded-full hidden pointer-events-none">
+        </div>
+      </div>
+
+      <!-- Movie info -->
+      <div class="mt-4 px-1">
+        <h3 id="modal-title" class="text-white font-bold text-xl"></h3>
+        <p id="modal-desc"  class="text-white/50 text-sm mt-1 leading-relaxed"></p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── FOOTER ──────────────────────────────────────────────── -->
+  <footer class="px-6 md:px-12 py-8 border-t border-white/5 mt-8">
+    <div class="flex items-center justify-between text-white/20 text-xs">
+      <span>CineStream — Powered by Pyrogram + FFmpeg</span>
+      <span id="footer-time"></span>
+    </div>
+  </footer>
+
+  <script>
+  /* ══════════════════════════════════════════════════════════════
+     VANILLA JS — Không Plyr, không thư viện ngoài.
+     Native <video controls> + auto-next playlist.
+  ══════════════════════════════════════════════════════════════ */
+
+  let allMovies    = [];
+  let currentIds   = [];   // mảng message_ids của phim đang xem
+  let currentIndex = 0;    // part đang phát (0-based)
+
+  /* ── Lấy reference video element 1 lần duy nhất ─────────────── */
+  const videoEl = document.getElementById('player');
+
+  /* ── Skeleton ───────────────────────────────────────────────── */
+  function renderSkeletons(n = 12) {
+    document.getElementById('movie-grid').innerHTML =
+      Array.from({ length: n }).map(() =>
+        `<div class="skeleton rounded-xl aspect-[2/3] w-full"></div>`
+      ).join('');
+  }
+
+  /* ── Fetch movies ──────────────────────────────────────────── */
+  async function fetchMovies() {
+    renderSkeletons();
+    hideStates();
+    try {
+      const res = await fetch('/api/movies');
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      allMovies = await res.json();
+      renderGallery(allMovies);
+    } catch (err) {
+      showError(err.message);
+    }
+  }
+
+  /* ── Render gallery ────────────────────────────────────────── */
+  function renderGallery(movies) {
+    const grid  = document.getElementById('movie-grid');
+    const count = document.getElementById('movie-count');
+    count.textContent = `${movies.length} phim`;
+
+    if (!movies.length) {
+      grid.innerHTML = '';
+      document.getElementById('empty-state').classList.remove('hidden');
+      document.getElementById('empty-state').classList.add('flex');
+      return;
+    }
+
+    grid.innerHTML = movies.map((m, i) => {
+      const partCount = (m.message_ids && m.message_ids.length > 1) ? m.message_ids.length : 0;
+      const partsBadge = partCount > 0
+        ? `<span class="absolute top-2 left-2 bg-purple-600 text-white text-[10px] font-bold
+                        px-1.5 py-0.5 rounded">${partCount} PARTS</span>` : '';
+
+      return `
+      <div class="movie-card cursor-pointer group relative rounded-xl overflow-hidden bg-cinema-card
+                  border border-cinema-border animate-fade-in"
+           style="animation-delay:${i * 40}ms"
+           onclick="openMovie(${i})">
+        <div class="aspect-[2/3] relative overflow-hidden bg-cinema-border">
+          ${m.thumb
+            ? `<img src="${m.thumb}" alt="${m.title}"
+                    class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                    loading="lazy" onerror="this.style.display='none'" />`
+            : `<div class="w-full h-full flex items-center justify-center text-4xl select-none">🎬</div>`
+          }
+          <div class="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity
+                      flex items-center justify-center">
+            <div class="w-14 h-14 rounded-full bg-cinema-accent/90 flex items-center justify-center
+                        shadow-lg shadow-cinema-accent/40 transition-transform group-hover:scale-110">
+              <svg class="w-6 h-6 text-white ml-1" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M8 5v14l11-7z"/>
+              </svg>
+            </div>
+          </div>
+          <span class="absolute top-2 right-2 bg-cinema-accent text-white text-[10px] font-bold
+                       px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 transition">MP4</span>
+          ${partsBadge}
+        </div>
+        <div class="p-3">
+          <h3 class="text-white text-sm font-semibold truncate">${m.title}</h3>
+          <p class="text-cinema-muted text-xs mt-0.5 line-clamp-2 leading-relaxed">${m.desc || ''}</p>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  /* ══════════════════════════════════════════════════════════════
+     HÀM HỦY AUDIO — chống đè âm thanh 2 lớp
+     pause() → xóa src → load() cưỡng bức giải phóng buffer
+  ══════════════════════════════════════════════════════════════ */
+  function killVideo() {
+    videoEl.pause();
+    videoEl.removeAttribute('src');
+    videoEl.load();              // ép browser giải phóng media pipeline cũ
+  }
+
+  /* ══════════════════════════════════════════════════════════════
+     OPEN MOVIE — xây playlist từ message_ids, phát part đầu tiên
+  ══════════════════════════════════════════════════════════════ */
+  function openMovie(index) {
+    const m = allMovies[index];
+    if (!m) return;
+
+    document.getElementById('modal-title').textContent = m.title;
+    document.getElementById('modal-desc').textContent  = m.desc || '';
+
+    // Show modal
+    const modal = document.getElementById('modal');
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+    document.body.style.overflow = 'hidden';
+
+    // Xây mảng playlist từ data
+    if (m.message_ids && m.message_ids.length > 0) {
+      currentIds = [...m.message_ids];
+    } else if (m.stream) {
+      currentIds = [parseInt(m.stream.replace('/stream/', ''), 10)];
+    } else {
+      currentIds = [];
+    }
+
+    currentIndex = 0;
+    playPart(0);
+  }
+
+  /* ══════════════════════════════════════════════════════════════
+     PLAY PART — hủy luồng cũ hoàn toàn → nạp src mới → play
+     Thứ tự bắt buộc: killVideo() → set src → load() → play()
+  ══════════════════════════════════════════════════════════════ */
+  function playPart(partIndex) {
+    if (partIndex < 0 || partIndex >= currentIds.length) return;
+    currentIndex = partIndex;
+
+    // 1. HỦY hoàn toàn luồng cũ (chống double audio)
+    killVideo();
+
+    // 2. Nạp source mới
+    const msgId = currentIds[partIndex];
+    videoEl.src = '/stream/' + msgId;
+
+    // 3. Load rồi play
+    videoEl.load();
+    videoEl.play().catch(() => {}); // autoplay có thể bị chặn — user tự bấm
+
+    // 4. Cập nhật indicator góc phải (không có nút bấm)
+    const indicator = document.getElementById('part-indicator');
+    if (currentIds.length > 1) {
+      indicator.textContent = `Part ${partIndex + 1} / ${currentIds.length}`;
+      indicator.classList.remove('hidden');
+    } else {
+      indicator.classList.add('hidden');
+    }
+  }
+
+  /* ══════════════════════════════════════════════════════════════
+     AUTO-NEXT — đăng ký 1 lần duy nhất trên native element
+     Khi part kết thúc → tự chuyển part tiếp, không cần nút bấm
+  ══════════════════════════════════════════════════════════════ */
+  videoEl.addEventListener('ended', () => {
+    const nextIdx = currentIndex + 1;
+    if (nextIdx < currentIds.length) {
+      playPart(nextIdx);
+    } else {
+      // Hết phim — hiện indicator báo xong
+      const indicator = document.getElementById('part-indicator');
+      indicator.textContent = '✅ Hết phim';
+      indicator.classList.remove('hidden');
+    }
+  });
+
+  /* ── Close modal ───────────────────────────────────────────── */
+  function closeModal(event) {
+    if (event && event.target !== document.getElementById('modal')) return;
+
+    document.getElementById('modal').classList.add('hidden');
+    document.getElementById('modal').classList.remove('flex');
+    document.body.style.overflow = '';
+
+    // Hủy video sạch sẽ
+    killVideo();
+
+    // Reset state
+    currentIds   = [];
+    currentIndex = 0;
+    document.getElementById('part-indicator').classList.add('hidden');
+  }
+
+  /* ── ESC đóng modal ─────────────────────────────────────────── */
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') closeModal();
+  });
+
+  /* ── Search ────────────────────────────────────────────────── */
+  document.getElementById('search-input').addEventListener('input', e => {
+    const q = e.target.value.toLowerCase().trim();
+    const filtered = q
+      ? allMovies.filter(m => m.title.toLowerCase().includes(q) || (m.desc||'').toLowerCase().includes(q))
+      : allMovies;
+    document.getElementById('gallery-title').textContent = q ? `Kết quả: "${q}"` : 'Tất Cả Phim';
+    renderGallery(filtered);
+  });
+
+  /* ── Helpers ───────────────────────────────────────────────── */
+  function hideStates() {
+    ['empty-state','error-state'].forEach(id => {
+      const el = document.getElementById(id);
+      el.classList.add('hidden');
+      el.classList.remove('flex');
+    });
+  }
+
+  function showError(msg) {
+    document.getElementById('movie-grid').innerHTML = '';
+    document.getElementById('error-msg').textContent = msg;
+    const el = document.getElementById('error-state');
+    el.classList.remove('hidden');
+    el.classList.add('flex');
+  }
+
+  function refreshGallery() { fetchMovies(); }
+
+  /* ── Clock ──────────────────────────────────────────────────── */
+  setInterval(() => {
+    document.getElementById('footer-time').textContent = new Date().toLocaleString('vi-VN');
+  }, 1000);
+
+  /* ── Auto-refresh gallery mỗi 30s ──────────────────────────── */
+  setInterval(fetchMovies, 30_000);
+
+  /* ── Init ──────────────────────────────────────────────────── */
+  fetchMovies();
+  </script>
+
+</body>
+</html>

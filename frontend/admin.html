@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="vi" class="scroll-smooth">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin — CineStream</title>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            dark: { 900:'#07070f', 800:'#0f0f1a', 700:'#161625', 600:'#1e1e30', 500:'#2a2a40' },
+            red:  { 600:'#e50914', 700:'#c2070f' },
+          },
+          animation: {
+            'fade-in':  'fadeIn .3s ease forwards',
+            'slide-up': 'slideUp .35s ease forwards',
+            'spin-slow':'spin 1.2s linear infinite',
+          },
+          keyframes: {
+            fadeIn:  { from:{ opacity:0 }, to:{ opacity:1 } },
+            slideUp: { from:{ opacity:0, transform:'translateY(16px)' }, to:{ opacity:1, transform:'translateY(0)' } },
+          }
+        }
+      }
+    }
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: 'Inter', sans-serif; background: #07070f; }
+    ::-webkit-scrollbar { width: 5px; }
+    ::-webkit-scrollbar-track { background: #0f0f1a; }
+    ::-webkit-scrollbar-thumb { background: #2a2a40; border-radius: 3px; }
+
+    .glass {
+      background: rgba(255,255,255,.04);
+      border: 1px solid rgba(255,255,255,.08);
+      backdrop-filter: blur(12px);
+    }
+    .input-field {
+      width: 100%;
+      background: rgba(255,255,255,.05);
+      border: 1px solid rgba(255,255,255,.1);
+      border-radius: .5rem;
+      padding: .6rem 1rem;
+      color: #fff;
+      font-size: .875rem;
+      transition: border-color .2s, background .2s;
+      outline: none;
+    }
+    .input-field:focus  { border-color: #e50914; background: rgba(255,255,255,.08); }
+    .input-field::placeholder { color: rgba(255,255,255,.25); }
+
+    .drop-zone {
+      border: 2px dashed rgba(255,255,255,.12);
+      transition: border-color .2s, background .2s;
+    }
+    .drop-zone.over { border-color: #e50914; background: rgba(229,9,20,.06); }
+
+    .progress-bar { transition: width .3s ease; }
+
+    .badge {
+      font-size: .65rem;
+      font-weight: 700;
+      padding: .2rem .5rem;
+      border-radius: 9999px;
+      letter-spacing: .05em;
+      text-transform: uppercase;
+    }
+    .badge-pending  { background: rgba(245,197,24,.15); color: #f5c518; }
+    .badge-running  { background: rgba(59,130,246,.15);  color: #60a5fa; }
+    .badge-done     { background: rgba(34,197,94,.15);   color: #4ade80; }
+    .badge-error    { background: rgba(229,9,20,.15);    color: #f87171; }
+  </style>
+</head>
+
+<body class="min-h-screen text-white">
+
+  <!-- ── SIDEBAR ─────────────────────────────────────────────── -->
+  <div class="flex min-h-screen">
+    <aside class="hidden md:flex flex-col w-56 bg-dark-800 border-r border-white/5 py-8 px-4 gap-1 fixed h-full z-20">
+      <div class="mb-8 px-2">
+        <span class="text-red-600 font-black text-xl">CINE</span>
+        <span class="text-white/50 font-light text-xl">ADMIN</span>
+      </div>
+      <a href="#upload"  class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-white/60 hover:text-white hover:bg-white/5 transition">
+        <span class="text-base">📤</span> Upload Video
+      </a>
+      <a href="#library" class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-white/60 hover:text-white hover:bg-white/5 transition">
+        <span class="text-base">🎬</span> Thư Viện Phim
+      </a>
+      <a href="#tasks"   class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-white/60 hover:text-white hover:bg-white/5 transition">
+        <span class="text-base">⚡</span> Upload Tasks
+      </a>
+      <div class="mt-auto pt-8 border-t border-white/5 space-y-1">
+        <a href="/"      class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-white/40 hover:text-white hover:bg-white/5 transition">
+          <span>🎞️</span> Xem trang chủ
+        </a>
+        <button onclick="doLogout()"
+                class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-red-400/60
+                       hover:text-red-400 hover:bg-red-500/10 transition text-left">
+          <span>🚪</span> Đăng xuất
+        </button>
+      </div>
+    </aside>
+
+    <!-- ── MAIN ────────────────────────────────────────────────── -->
+    <main class="flex-1 md:ml-56 px-6 md:px-10 py-8 max-w-5xl">
+
+      <!-- Header -->
+      <div class="flex items-center justify-between mb-10">
+        <div>
+          <h1 class="text-2xl font-bold text-white">Admin Dashboard</h1>
+          <p class="text-white/30 text-sm mt-0.5">Quản lý video và thư viện phim</p>
+        </div>
+        <div id="status-pill" class="flex items-center gap-2 text-xs px-3 py-1.5 rounded-full glass text-white/50">
+          <span id="status-dot" class="w-2 h-2 rounded-full bg-gray-500"></span>
+          <span id="status-text">Đang kết nối...</span>
+        </div>
+      </div>
+
+      <!-- ── SECTION 1: UPLOAD ──────────────────────────────── -->
+      <section id="upload" class="mb-10">
+        <h2 class="text-sm font-semibold text-white/40 uppercase tracking-widest mb-4">📤 Upload Video</h2>
+
+        <div class="glass rounded-2xl p-6 space-y-5 animate-fade-in">
+
+          <!-- Movie metadata -->
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label class="block text-xs font-medium text-white/50 mb-1.5">Tên Phim <span class="text-red-500">*</span></label>
+              <input id="movie-title" type="text" class="input-field" placeholder="Avengers: Endgame" />
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-white/50 mb-1.5">Thumbnail URL</label>
+              <input id="movie-thumb" type="url" class="input-field" placeholder="https://image.tmdb.org/..." />
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-xs font-medium text-white/50 mb-1.5">Mô Tả</label>
+            <textarea id="movie-desc" rows="2" class="input-field resize-none" placeholder="Nội dung phim..."></textarea>
+          </div>
+
+          <!-- Tabs: URL or File -->
+          <div>
+            <div class="flex gap-1 mb-3 bg-dark-700 rounded-lg p-1 w-fit">
+              <button id="tab-url"  onclick="switchTab('url')"
+                      class="tab-btn px-4 py-1.5 rounded-md text-xs font-medium bg-red-600 text-white transition">
+                🔗 Link URL
+              </button>
+              <button id="tab-file" onclick="switchTab('file')"
+                      class="tab-btn px-4 py-1.5 rounded-md text-xs font-medium text-white/50 hover:text-white transition">
+                📁 File Upload
+              </button>
+            </div>
+
+            <!-- URL Tab -->
+            <div id="panel-url">
+              <label class="block text-xs font-medium text-white/50 mb-1.5">Link Video Trực Tiếp</label>
+              <div class="flex gap-2">
+                <input id="video-url" type="url" class="input-field" placeholder="https://example.com/movie.mp4" />
+                <button onclick="submitURL()"
+                        class="shrink-0 bg-red-600 hover:bg-red-700 transition text-white text-sm font-semibold
+                               px-5 py-2 rounded-lg whitespace-nowrap">
+                  Upload ↗
+                </button>
+              </div>
+            </div>
+
+            <!-- File Tab -->
+            <div id="panel-file" class="hidden">
+              <div id="drop-zone"
+                   class="drop-zone rounded-xl p-8 text-center cursor-pointer"
+                   onclick="document.getElementById('file-input').click()"
+                   ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event)">
+                <div class="text-4xl mb-2">🎞️</div>
+                <p class="text-white/60 text-sm font-medium">Kéo thả file vào đây</p>
+                <p class="text-white/25 text-xs mt-1">MP4, MKV, AVI, MOV — không giới hạn dung lượng</p>
+                <p id="drop-filename" class="text-red-400 text-xs mt-2 font-medium"></p>
+              </div>
+              <input id="file-input" type="file" accept="video/*" class="hidden" onchange="onFileSelected(this)" />
+              <button onclick="submitFile()"
+                      class="mt-3 w-full bg-red-600 hover:bg-red-700 transition text-white text-sm font-semibold
+                             py-2.5 rounded-lg disabled:opacity-40" id="upload-file-btn" disabled>
+                Upload File
+              </button>
+            </div>
+          </div>
+
+          <!-- Progress -->
+          <div id="upload-progress" class="hidden space-y-2">
+            <div class="flex justify-between text-xs text-white/50">
+              <span id="progress-label">Đang xử lý...</span>
+              <span id="progress-pct">0%</span>
+            </div>
+            <div class="h-1.5 bg-white/10 rounded-full overflow-hidden">
+              <div id="progress-fill" class="progress-bar h-full bg-gradient-to-r from-red-600 to-red-400 rounded-full" style="width:0%"></div>
+            </div>
+          </div>
+
+          <!-- Toast result -->
+          <div id="upload-result" class="hidden text-sm px-4 py-3 rounded-lg font-medium"></div>
+
+        </div>
+      </section>
+
+      <!-- ── SECTION 2: MOVIE LIBRARY ──────────────────────── -->
+      <section id="library" class="mb-10">
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="text-sm font-semibold text-white/40 uppercase tracking-widest">🎬 Thư Viện Phim</h2>
+          <button onclick="loadMovies()"
+                  class="text-xs text-white/40 hover:text-white transition flex items-center gap-1">
+            ↻ Làm mới
+          </button>
+        </div>
+
+        <div id="movie-list" class="space-y-2">
+          <div class="text-center py-8 text-white/25 text-sm">Đang tải...</div>
+        </div>
+      </section>
+
+      <!-- ── SECTION 3: TASKS ──────────────────────────────── -->
+      <section id="tasks">
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="text-sm font-semibold text-white/40 uppercase tracking-widest">⚡ Upload Tasks</h2>
+          <button onclick="loadTasks()"
+                  class="text-xs text-white/40 hover:text-white transition">↻ Làm mới</button>
+        </div>
+        <div id="task-list" class="space-y-2">
+          <div class="text-center py-8 text-white/25 text-sm">Đang tải...</div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- ── ADD MOVIE MODAL ──────────────────────────────────────── -->
+  <div id="add-modal" class="hidden fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center px-4"
+       onclick="if(event.target===this)closeAddModal()">
+    <div class="glass rounded-2xl p-6 w-full max-w-md space-y-4 animate-slide-up">
+      <h3 class="font-bold text-lg">Thêm Phim Thủ Công</h3>
+      <div>
+        <label class="block text-xs text-white/50 mb-1">Tên Phim</label>
+        <input id="am-title" type="text" class="input-field" placeholder="Tên phim..." />
+      </div>
+      <div>
+        <label class="block text-xs text-white/50 mb-1">Mô Tả</label>
+        <textarea id="am-desc" rows="2" class="input-field resize-none" placeholder="Mô tả..."></textarea>
+      </div>
+      <div>
+        <label class="block text-xs text-white/50 mb-1">Thumbnail URL</label>
+        <input id="am-thumb" type="url" class="input-field" placeholder="https://..." />
+      </div>
+      <div>
+        <label class="block text-xs text-white/50 mb-1">Stream URL (.m3u8)</label>
+        <input id="am-stream" type="text" class="input-field" placeholder="/stream/movie_id.m3u8" />
+      </div>
+      <div class="flex gap-3 pt-2">
+        <button onclick="closeAddModal()"
+                class="flex-1 py-2.5 rounded-lg border border-white/10 text-white/50 hover:text-white text-sm transition">
+          Hủy
+        </button>
+        <button onclick="submitAddMovie()"
+                class="flex-1 py-2.5 rounded-lg bg-red-600 hover:bg-red-700 text-white text-sm font-semibold transition">
+          Thêm Phim
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+  /* ── State ─────────────────────────────────────────────────── */
+  let selectedFile = null;
+  let ws = null;
+
+  /* ── WebSocket ─────────────────────────────────────────────── */
+  function connectWS() {
+    const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+    ws = new WebSocket(`${proto}://${location.host}/ws`);
+    ws.onopen  = () => setStatus(true);
+    ws.onclose = () => { setStatus(false); setTimeout(connectWS, 3000); };
+    ws.onmessage = e => {
+      try {
+        const msg = JSON.parse(e.data);
+        if (msg.type === 'task_update' || msg.type === 'task_list') loadTasks();
+      } catch {}
+    };
+  }
+
+  function setStatus(ok) {
+    document.getElementById('status-dot').className  = `w-2 h-2 rounded-full ${ok ? 'bg-green-400' : 'bg-red-500'}`;
+    document.getElementById('status-text').textContent = ok ? 'Server Online' : 'Mất kết nối';
+  }
+
+  /* ── Tab switch ────────────────────────────────────────────── */
+  function switchTab(tab) {
+    const isUrl = tab === 'url';
+    document.getElementById('panel-url').classList.toggle('hidden',  !isUrl);
+    document.getElementById('panel-file').classList.toggle('hidden',  isUrl);
+    document.getElementById('tab-url').className  = `tab-btn px-4 py-1.5 rounded-md text-xs font-medium transition ${isUrl  ? 'bg-red-600 text-white' : 'text-white/50 hover:text-white'}`;
+    document.getElementById('tab-file').className = `tab-btn px-4 py-1.5 rounded-md text-xs font-medium transition ${!isUrl ? 'bg-red-600 text-white' : 'text-white/50 hover:text-white'}`;
+  }
+
+  /* ── Drag & Drop ───────────────────────────────────────────── */
+  function onDragOver(e)  { e.preventDefault(); document.getElementById('drop-zone').classList.add('over'); }
+  function onDragLeave()  { document.getElementById('drop-zone').classList.remove('over'); }
+  function onDrop(e) {
+    e.preventDefault();
+    onDragLeave();
+    const f = e.dataTransfer.files[0];
+    if (f) setFile(f);
+  }
+  function onFileSelected(input) { if (input.files[0]) setFile(input.files[0]); }
+  function setFile(f) {
+    selectedFile = f;
+    document.getElementById('drop-filename').textContent = `✓ ${f.name} (${(f.size/1e6).toFixed(1)} MB)`;
+    document.getElementById('upload-file-btn').disabled = false;
+  }
+
+  /* ── Submit URL ────────────────────────────────────────────── */
+  async function submitURL() {
+    const url   = document.getElementById('video-url').value.trim();
+    const title = document.getElementById('movie-title').value.trim();
+    if (!url)   return showResult('Vui lòng nhập link video.', false);
+    if (!title) return showResult('Vui lòng nhập tên phim.', false);
+
+    showProgress('Đang gửi yêu cầu...', 10);
+    try {
+      const res = await fetch('/api/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          url,
+          title,
+          desc:  document.getElementById('movie-desc').value.trim(),
+          thumb: document.getElementById('movie-thumb').value.trim(),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || 'Lỗi server');
+      showProgress('Task đã tạo — đang upload...', 40);
+      showResult(`✅ Đã tạo task: ${data.task_id}`, true);
+      loadTasks();
+    } catch (err) {
+      showResult(`❌ ${err.message}`, false);
+    }
+  }
+
+  /* ── Submit File ───────────────────────────────────────────── */
+  async function submitFile() {
+    if (!selectedFile) return;
+    const title = document.getElementById('movie-title').value.trim();
+    if (!title) return showResult('Vui lòng nhập tên phim.', false);
+
+    const fd = new FormData();
+    fd.append('file',  selectedFile);
+    fd.append('title', title);
+    fd.append('desc',  document.getElementById('movie-desc').value.trim());
+    fd.append('thumb', document.getElementById('movie-thumb').value.trim());
+
+    showProgress(`Đang upload ${selectedFile.name}...`, 5);
+
+    const xhr = new XMLHttpRequest();
+    xhr.upload.onprogress = e => {
+      if (e.lengthComputable) {
+        const pct = Math.round(e.loaded / e.total * 100);
+        showProgress(`Uploading: ${pct}%`, pct);
+      }
+    };
+    xhr.onload = () => {
+      try {
+        const data = JSON.parse(xhr.responseText);
+        if (xhr.status >= 400) throw new Error(data.detail || 'Lỗi server');
+        showResult(`✅ Đã nhận file — task: ${data.task_id}`, true);
+        loadTasks();
+      } catch (e) { showResult(`❌ ${e.message}`, false); }
+    };
+    xhr.onerror = () => showResult('❌ Lỗi kết nối.', false);
+    xhr.open('POST', '/api/tasks/file');
+    xhr.send(fd);
+  }
+
+  /* ── Progress helpers ──────────────────────────────────────── */
+  function showProgress(label, pct) {
+    document.getElementById('upload-progress').classList.remove('hidden');
+    document.getElementById('upload-result').classList.add('hidden');
+    document.getElementById('progress-label').textContent = label;
+    document.getElementById('progress-pct').textContent   = `${pct}%`;
+    document.getElementById('progress-fill').style.width  = `${pct}%`;
+  }
+  function showResult(msg, ok) {
+    document.getElementById('upload-progress').classList.add('hidden');
+    const el = document.getElementById('upload-result');
+    el.classList.remove('hidden');
+    el.textContent = msg;
+    el.className = `text-sm px-4 py-3 rounded-lg font-medium ${ok ? 'bg-green-500/15 text-green-400' : 'bg-red-500/15 text-red-400'}`;
+  }
+
+  /* ── Load Movies ───────────────────────────────────────────── */
+  async function loadMovies() {
+    try {
+      const res  = await fetch('/api/movies');
+      const data = await res.json();
+      const list = document.getElementById('movie-list');
+
+      if (!data.length) {
+        list.innerHTML = `
+          <div class="glass rounded-xl p-6 text-center">
+            <p class="text-white/30 text-sm">Chưa có phim nào trong thư viện</p>
+            <button onclick="openAddModal()"
+                    class="mt-3 bg-red-600 hover:bg-red-700 transition text-white text-xs font-semibold px-4 py-2 rounded-lg">
+              + Thêm thủ công
+            </button>
+          </div>`;
+        return;
+      }
+
+      list.innerHTML = data.map(m => `
+        <div class="glass rounded-xl p-4 flex items-center gap-4 animate-fade-in">
+          <div class="w-12 h-16 rounded-lg overflow-hidden bg-dark-600 shrink-0 flex items-center justify-center text-xl">
+            ${m.thumb ? `<img src="${m.thumb}" class="w-full h-full object-cover" onerror="this.parentNode.innerHTML='🎬'" />` : '🎬'}
+          </div>
+          <div class="flex-1 min-w-0">
+            <p class="font-semibold text-sm text-white truncate">${m.title}</p>
+            <p class="text-white/35 text-xs mt-0.5 truncate">${m.desc || '—'}</p>
+            <p class="text-white/20 text-xs mt-1 font-mono truncate">${m.stream || ''}</p>
+          </div>
+          <div class="flex gap-2 shrink-0">
+            <a href="${m.stream || '#'}" target="_blank"
+               class="text-xs px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 transition text-white/60 hover:text-white">
+              ▶ Play
+            </a>
+            <button onclick="deleteMovie('${m.id}')"
+                    class="text-xs px-3 py-1.5 rounded-lg bg-red-500/10 hover:bg-red-500/20 transition text-red-400">
+              🗑
+            </button>
+          </div>
+        </div>
+      `).join('') + `
+        <button onclick="openAddModal()"
+                class="w-full mt-2 py-2.5 rounded-xl border border-dashed border-white/10
+                       hover:border-red-600/50 hover:bg-red-600/5 transition text-white/30
+                       hover:text-white/60 text-sm">
+          + Thêm phim thủ công
+        </button>`;
+    } catch {
+      document.getElementById('movie-list').innerHTML =
+        '<div class="text-center py-6 text-red-400/60 text-sm">Lỗi tải danh sách</div>';
+    }
+  }
+
+  /* ── Load Tasks ────────────────────────────────────────────── */
+  async function loadTasks() {
+    try {
+      const res  = await fetch('/api/tasks');
+      const data = await res.json();
+      const list = document.getElementById('task-list');
+      const tasks = (data.tasks || []).slice().reverse();
+
+      if (!tasks.length) {
+        list.innerHTML = '<div class="text-center py-6 text-white/20 text-sm">Chưa có task nào</div>';
+        return;
+      }
+
+      list.innerHTML = tasks.map(t => {
+        const pct    = Math.round(t.progress || 0);
+        const status = t.status?.toLowerCase() || 'unknown';
+        const badge  = { pending:'badge-pending', downloading:'badge-running', splitting:'badge-running',
+                          uploading:'badge-running', done:'badge-done', error:'badge-error' }[status] || 'badge-pending';
+        return `
+          <div class="glass rounded-xl p-4 animate-fade-in">
+            <div class="flex items-start justify-between gap-3 mb-2">
+              <div class="min-w-0">
+                <p class="text-sm font-medium text-white truncate">${t.filename || t.url || t.task_id}</p>
+                <p class="text-xs text-white/35 mt-0.5">${t.message || ''}</p>
+              </div>
+              <span class="badge ${badge} shrink-0">${status}</span>
+            </div>
+            ${status !== 'done' && status !== 'pending' ? `
+            <div class="h-1 bg-white/10 rounded-full overflow-hidden mt-2">
+              <div class="h-full bg-gradient-to-r from-red-600 to-red-400 rounded-full progress-bar" style="width:${pct}%"></div>
+            </div>` : ''}
+          </div>`;
+      }).join('');
+    } catch {
+      document.getElementById('task-list').innerHTML =
+        '<div class="text-center py-6 text-red-400/60 text-sm">Lỗi tải tasks</div>';
+    }
+  }
+
+  /* ── Add Movie Modal ───────────────────────────────────────── */
+  function openAddModal()  { document.getElementById('add-modal').classList.remove('hidden'); }
+  function closeAddModal() { document.getElementById('add-modal').classList.add('hidden'); }
+
+  async function submitAddMovie() {
+    const body = {
+      title:  document.getElementById('am-title').value.trim(),
+      desc:   document.getElementById('am-desc').value.trim(),
+      thumb:  document.getElementById('am-thumb').value.trim(),
+      stream: document.getElementById('am-stream').value.trim(),
+    };
+    if (!body.title || !body.stream) return alert('Cần có Tên Phim và Stream URL');
+    try {
+      const res = await fetch('/api/movies', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) throw new Error((await res.json()).detail);
+      closeAddModal();
+      loadMovies();
+    } catch (err) { alert(`Lỗi: ${err.message}`); }
+  }
+
+  async function deleteMovie(id) {
+    if (!confirm('Xóa phim này khỏi thư viện?')) return;
+    await fetch(`/api/movies/${id}`, { method: 'DELETE' });
+    loadMovies();
+  }
+
+  async function doLogout() {
+    await fetch('/api/logout', { method: 'POST', credentials: 'same-origin' });
+    window.location.replace('/login');
+  }
+
+  /* ── Init ──────────────────────────────────────────────────── */
+  connectWS();
+  loadMovies();
+  loadTasks();
+  setInterval(loadTasks, 5000);
+  </script>
+</body>
+</html>
